@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,9 @@ import {
   Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
+import { convertImage } from '../../services/api';
 
 type PickedImage = {
   uri: string;
@@ -21,6 +23,27 @@ export default function UploadScreen() {
   const router = useRouter();
   const [image, setImage] = useState<PickedImage | null>(null);
   const [converting, setConverting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const convertedRef = useRef(false);
+
+  // Cancel any in-flight request when the component unmounts
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
+
+  // Reset image and error when regaining focus after a successful conversion
+  useFocusEffect(
+    useCallback(() => {
+      if (convertedRef.current) {
+        setImage(null);
+        setError(null);
+        convertedRef.current = false;
+      }
+    }, []),
+  );
 
   async function handleTakePhoto() {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -69,11 +92,44 @@ export default function UploadScreen() {
   }
 
   async function handleConvert() {
-    // Cycle 3: wire this to POST /conversions and poll GET /conversions/{id}
+    if (!image) return;
+
     setConverting(true);
-    await new Promise((resolve) => setTimeout(resolve, 400)); // simulate tap feedback
-    setConverting(false);
-    Alert.alert('Coming Soon', 'JSON conversion will be available in a future update.');
+    setError(null);
+
+    const formData = new FormData();
+    formData.append('image', {
+      uri: image.uri,
+      name: 'upload.jpg',
+      type: 'image/jpeg',
+    } as unknown as Blob);
+
+    try {
+      const result = await convertImage(formData);
+
+      if (result.status === 'completed') {
+        convertedRef.current = true;
+        router.push({
+          pathname: '/(app)/result',
+          params: {
+            jobId: result.jobId,
+            status: result.status,
+            result: JSON.stringify(result.result),
+            error: '',
+          },
+        });
+      } else {
+        setError(result.error ?? 'Conversion failed.');
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unexpected error occurred.');
+      }
+    } finally {
+      setConverting(false);
+    }
   }
 
   return (
@@ -106,6 +162,20 @@ export default function UploadScreen() {
                 {converting ? 'Converting…' : 'Convert to JSON'}
               </Text>
             </TouchableOpacity>
+
+            {error !== null && (
+              <>
+                <Text style={styles.errorText}>{error}</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setError(null);
+                    handleConvert();
+                  }}
+                >
+                  <Text style={styles.tryAgainText}>Try Again</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </>
         ) : (
           <>
@@ -217,6 +287,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   secondaryButtonText: {
+    color: '#2563eb',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  tryAgainText: {
     color: '#2563eb',
     fontSize: 15,
     fontWeight: '600',

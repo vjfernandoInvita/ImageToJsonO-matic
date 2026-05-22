@@ -14,8 +14,52 @@ Mobile App (Expo)  →  .NET Web API  →  Python Agent (LangGraph + Claude Sonn
 |---|---|---|
 | 1 | Authentication (mock + Cognito) | ✅ Complete |
 | 2 | Image upload screen | ✅ Complete |
-| 3 | End-to-end conversion (API + Agent) | 🔧 In Progress |
+| 3 | End-to-end conversion (API + Agent) | ✅ Complete |
 | 4 | Auth on API, job history | 📋 Planned |
+
+---
+
+## Quick Start
+
+Start all three services in **separate terminals**, in this order:
+
+### Step 1 — Python Agent
+
+```powershell
+cd agent
+pip install -r requirements.txt   # first time only
+
+# First time: copy and fill in env vars
+Copy-Item .env.example .env       # then add ANTHROPIC_API_KEY
+
+uvicorn main:app --reload
+# → http://localhost:8000
+```
+
+### Step 2 — .NET API
+
+```powershell
+cd api
+
+# First time: restore packages (explicit source bypasses org CodeArtifact)
+dotnet restore --source https://api.nuget.org/v3/index.json
+
+$env:AGENT_BASE_URL = "http://localhost:8000"
+$env:ASPNETCORE_URLS = "http://localhost:5000"
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+dotnet run
+# → http://localhost:5000  |  Swagger at http://localhost:5000/swagger
+```
+
+### Step 3 — Mobile App
+
+```powershell
+cd mobile
+npm install                   # first time only
+npx expo start --android      # emulator must already be running
+```
+
+> **Android emulator:** Open Android Studio → Device Manager → click ▶ on your AVD before running `npx expo start --android`.
 
 ---
 
@@ -45,6 +89,8 @@ $env:PATH += ";$env:LOCALAPPDATA\Android\Sdk\platform-tools"
 cd mobile
 npm install
 ```
+
+> `expo-clipboard` is included in `package.json` and installed by `npm install`. No separate install step needed.
 
 ### Run on Android emulator
 
@@ -86,6 +132,18 @@ EXPO_PUBLIC_USE_MOCK_AUTH=true
 **Mock credentials:** any email address + password `test`
 
 To switch to real Cognito auth, set `EXPO_PUBLIC_USE_MOCK_AUTH=false` and fill in the Cognito values in `mobile/.env` (see `mobile/.env.example`).
+
+**API base URL** — set to the Android emulator loopback by default:
+
+```
+EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:5000
+```
+
+| Target | Value |
+|---|---|
+| Android emulator | `http://10.0.2.2:5000` |
+| iOS Simulator | `http://localhost:5000` |
+| Real device | `http://<your-LAN-IP>:5000` |
 
 ---
 
@@ -135,40 +193,68 @@ Or in Android Studio: **Device Manager → ▼ → Cold Boot Now**
 
 ---
 
-## .NET API (Cycle 3)
+## .NET API
 
-> Not yet implemented — see `PDR/cycle-3-conversion.md`
+### First-time setup
 
 ```powershell
-# From the API project folder (once created)
-dotnet run
-dotnet ef database update
-dotnet test
+cd api
+dotnet restore --source https://api.nuget.org/v3/index.json
 ```
+
+> **Note:** A `NuGet.config` in `api/` pins the source to `nuget.org`. If your machine uses the org's CodeArtifact feed globally, the explicit restore above ensures standard packages resolve correctly.
+
+### Run
+
+```powershell
+cd api
+$env:AGENT_BASE_URL = "http://localhost:8000"
+$env:ASPNETCORE_URLS = "http://localhost:5000"
+dotnet run
+```
+
+Swagger UI available at `http://localhost:5000/swagger` when `ASPNETCORE_ENVIRONMENT=Development`.
+
+### Other commands
+
+```powershell
+dotnet build
+dotnet test
+dotnet ef database update   # Cycle 4 — no migrations exist yet
+```
+
+### Environment variables
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `AGENT_BASE_URL` | ✅ Yes | Python agent base URL, e.g. `http://localhost:8000` |
+| `ASPNETCORE_ENVIRONMENT` | No | `Development` enables Swagger UI (default: `Production`) |
+| `ASPNETCORE_URLS` | No | Override listen address (default: `http://localhost:5000`) |
+| `DB_CONNECTION_STRING` | No | SQLite path (default: `Data Source=conversions.db`) |
+
+Copy `api/.env.example` → `api/.env` and fill in values.
 
 ---
 
 ## Python Agent (Cycle 3)
 
-> Not yet implemented — see `PDR/cycle-3-conversion.md`
-
 ```powershell
-# From agent/
+cd agent
 pip install -r requirements.txt
 
 # Copy and fill in env vars
-cp .env.example .env
+Copy-Item .env.example .env
 
 uvicorn main:app --reload
 ```
 
-**Required environment variables:**
+**Environment variables** (`agent/.env`):
 
 ```
-ANTHROPIC_API_KEY=        # Claude Sonnet API key
-LANGCHAIN_API_KEY=        # LangSmith tracing key
-LANGCHAIN_PROJECT=        # LangSmith project name
-LANGCHAIN_TRACING_V2=true
+ANTHROPIC_API_KEY=        # Required — Claude Sonnet API key
+LANGCHAIN_TRACING_V2=false
+LANGCHAIN_API_KEY=        # Optional — LangSmith tracing key
+LANGCHAIN_PROJECT=        # Optional — LangSmith project name
 ```
 
 ```powershell
@@ -190,7 +276,8 @@ ImageToJsonO-matic/
 │   ├── services/
 │   │   ├── auth.ts          # Toggle: mock ↔ Cognito
 │   │   ├── auth.mock.ts     # Local secure-store mock
-│   │   └── auth.cognito.ts  # AWS Amplify / Cognito
+│   │   ├── auth.cognito.ts  # AWS Amplify / Cognito
+│   │   └── api.ts           # HTTP client — POST /conversions
 │   └── .env                 # Local env vars (not committed)
 ├── api/                     # .NET 8 Web API (Cycle 3)
 │   └── Features/

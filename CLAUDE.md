@@ -10,7 +10,60 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Mobile App (Expo)  →  .NET Web API  →  Python Agent Service (LangGraph)
 ```
 
-**Cycle 1** (Authentication) is complete. **Cycle 2** (Image Upload) is in progress — the upload screen exists in the mobile app; backend is not yet built. The `.NET API` and **Python agent** are designed and documented but not yet committed.
+**Cycles 1–3 are complete.** Cycle 4 (auth on API + job history) is next.
+
+| Cycle | Feature | Status |
+|---|---|---|
+| 1 | Authentication (mock + Cognito) | ✅ Complete |
+| 2 | Image upload screen | ✅ Complete |
+| 3 | End-to-end conversion (API + Agent) | ✅ Complete |
+| 4 | Auth on API, job history | 📋 Planned |
+
+## Session Startup
+
+Start all three services in separate terminals. **Order matters** — agent first, then API, then mobile.
+
+### 1. Python Agent
+
+```powershell
+cd agent
+# First time only:
+pip install -r requirements.txt
+cp .env.example .env   # then fill in ANTHROPIC_API_KEY
+
+uvicorn main:app --reload
+# Listening on http://localhost:8000
+```
+
+### 2. .NET API
+
+```powershell
+cd api
+# First time only (use explicit source to bypass org CodeArtifact):
+dotnet restore --source https://api.nuget.org/v3/index.json
+cp .env.example .env   # or set env vars manually (see below)
+
+$env:AGENT_BASE_URL = "http://localhost:8000"
+$env:ASPNETCORE_URLS = "http://localhost:5000"
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+dotnet run
+# Swagger UI at http://localhost:5000/swagger
+```
+
+> **NuGet note:** `api/NuGet.config` pins the source to `nuget.org`. This is required because the org's CodeArtifact feed needs SSO auth that isn't available in the terminal. Always pass `--source https://api.nuget.org/v3/index.json` on the first restore for a new machine.
+
+### 3. Mobile App
+
+```powershell
+cd mobile
+# First time only:
+npm install
+
+npx expo start --android
+# Press 'a' anytime to re-deploy to the running Android emulator
+```
+
+**Android emulator must be running first** (Android Studio → Device Manager → ▶).
 
 ## Commands
 
@@ -60,7 +113,7 @@ Expo Router with **group-based file routing**:
 
 Mock password reset code is `"123456"`.
 
-### .NET API (planned)
+### .NET API (`api/`)
 
 **Vertical Slice + DDD pattern:**
 - One folder per feature under `Features/` (e.g., `Features/ConvertImage/`)
@@ -74,7 +127,7 @@ Mock password reset code is `"123456"`.
 - `GET /conversions/{id}` — poll for result
 - Errors use `ProblemDetails` (RFC 7807)
 
-### Python Agent (planned)
+### Python Agent (`agent/`)
 
 LangGraph pipeline in `agent/`:
 
@@ -88,7 +141,7 @@ discover_schema → extract_data → validate_results
 - `extract_data` — builds a **dynamic Pydantic model at runtime** from discovered keys, re-prompts with `model.with_structured_output(DynamicModel)` for values
 - `validate_results` — validates coherence; routes back to `extract_data` or terminates via LangGraph conditional edges
 
-All LLM calls use Claude Sonnet with vision input. Traces go to LangSmith (`LANGCHAIN_TRACING_V2=true`).
+All LLM calls use Claude Sonnet with vision input. Traces go to LangSmith when `LANGCHAIN_TRACING_V2=true` (off by default in `.env.example`).
 
 ## README Maintenance
 
