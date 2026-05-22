@@ -31,7 +31,14 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ImageToJsonO-matic needs access to your photo library to select images for conversion.",
+          "cameraPermission": "ImageToJsonO-matic needs access to your camera to capture images for conversion."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

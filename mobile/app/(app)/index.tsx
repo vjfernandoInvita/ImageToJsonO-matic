@@ -31,6 +31,11 @@ export default function LandingScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.welcome}>Welcome, {username}!</Text>
+
+      <TouchableOpacity style={styles.primaryButton} onPress={() => router.push('/(app)/upload')}>
+        <Text style={styles.primaryButtonText}>Convert Image to JSON</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutText}>Log Out</Text>
       </TouchableOpacity>
@@ -56,6 +61,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1a1a1a',
     marginBottom: 40,
+  },
+  primaryButton: {
+    backgroundColor: '#2563eb',
+    borderRadius: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   logoutButton: {
     borderWidth: 1,

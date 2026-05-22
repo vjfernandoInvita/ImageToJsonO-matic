@@ -17,6 +17,9 @@ mobile/.env
 agent/.venv/
 agent/.env
 
+# .NET API secrets
+api/.env
+
 # IDE
 .idea/
 .vscode/
